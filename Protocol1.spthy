@@ -1,0 +1,123 @@
+theory Protocol1
+
+// Do not change the theory name. i.e. do not change the above line
+
+begin
+
+/* ----------------- */
+/* Equational theory */
+/* ----------------- */
+
+//Do not add, change or remove anything (not even comments) in the following line.
+builtins: hashing
+
+/* --------------------- */
+/* Password Registration */
+/* --------------------- */
+
+/* The following rule should be annotated by the following action facts: 
+- RegisterPassword(C, S, pwd): indicating that client C has a password pwd with server S.
+*/
+// Do not change the rule name
+rule RegisterPassword:
+   [ Fr(~pwd) ]
+   --[ RegisterPassword($C, $S, ~pwd) ]->
+   [ !Password($C, $S, ~pwd) ]
+
+/*----------------*/
+/* Protocol rules */
+/*----------------*/
+
+/* The following rule should be annotated by the following action facts: 
+- ServerRequests(S)
+*/
+// Do not change the rule name
+rule ServerRequests:
+   [ !Password($C, $S, ~pwd) ]
+   --[ ServerRequests($S) ]->
+   [ ServerWaiting($S, $C, ~pwd), Out(<'login', $S>) ]
+
+/* The following rule should be annotated by the following action facts: 
+- ClientAuthenticates(C, S, pwd)
+*/
+// Do not change the rule name
+rule ClientAuthenticates:
+   [ !Password($C, $S, ~pwd), In(<'login', $S>) ]
+   --[ ClientAuthenticates($C, $S, ~pwd), AuthGiven($C, $S, ~pwd), Secret(~pwd), FinishedC($C, $S, ~pwd) ]->
+   [ Out(<$C, h(~pwd)>) ]
+
+/* The following rule should be annotated by the following action facts: 
+- ServerValidates(S, C, pwd)
+*/
+// Do not change the rule name
+rule ServerValidates:
+   [ ServerWaiting($S, $C, ~pwd), In(<$C, h(~pwd)>) ]
+   --[ ServerValidates($S, $C, ~pwd), AuthSuccess($S, $C, ~pwd), FinishedS($S, $C, ~pwd) ]->
+   [ ]
+
+/* ------------ */
+/* Restrictions */
+/* ------------ */
+
+//You can un-comment these lines if you want to use this restriction to check equality:
+//restriction Equality:
+// "All x y #i. Eq(x,y) @i ==> x = y"
+
+/* ---------- */
+/* Properties */
+/* ---------- */
+
+/*    Start Lemmas    */
+// You must write your lemmas within this section, lemmas placed before the previous line will not be graded. 
+// Do not modify this line and the previous two lines. 
+
+/* Executability checks */
+// Do not modify this lemma
+lemma executable:
+  exists-trace 
+"Ex #i #j C S pwd. 
+  FinishedC(C, S, pwd)@i & FinishedS(S, C, pwd)@j & not (S = C) "
+
+// The following lemma ensures that you add the required action facts. 
+// You may want to comment it out while solving the subtasks. But remember to add it back for the submission.
+// Do not modify this lemma
+lemma checkActionFactsAreAdded:
+exists-trace
+  " (Ex a b c #i.   RegisterPassword(a, b, c)@i)
+  & (Ex a #i.       ServerRequests(a)@i)
+  & (Ex a b c #i.   ClientAuthenticates(a, b, c)@i)
+  & (Ex a b c #i.   ServerValidates(a, b, c)@i)   
+  " 
+/* You may only use the following action facts to formulate lemma 'secrecy':
+- Secret 
+- K 
+*/
+// Do not change the lemma's name
+lemma secrecy:
+  "All pwd #i. Secret(pwd)@i ==> not (Ex #j. K(pwd)@j)"
+
+/* You may only use the following action facts to formulate lemma 'non_inj_auth':
+- AuthGiven
+- AuthSuccess
+*/
+// Do not change the lemma's name
+lemma non_inj_auth:
+  "All S C pwd #i. AuthSuccess(S, C, pwd)@i ==> (Ex #j. AuthGiven(C, S, pwd)@j & #j < #i)"
+
+/* You may only use the following action facts to formulate lemma 'inj_auth':
+- AuthGiven
+- AuthSuccess
+*/
+// Do not change the lemma's name
+lemma inj_auth:
+  "All S C pwd #i. AuthSuccess(S, C, pwd)@i ==> 
+    (Ex #j. AuthGiven(C, S, pwd)@j & #j < #i 
+      & not (Ex S2 #i2. AuthSuccess(S2, C, pwd)@i2 & not (#i2 = #i) & #j < #i2))"
+
+
+/*    End Lemmas    */
+// Lemmas after this line will not be graded. 
+// Do not modify this line and the previous two lines. 
+
+// Do not add or modify ANYTHING after this line
+end

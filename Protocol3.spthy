@@ -1,0 +1,168 @@
+theory Protocol3
+// Do not change the theory name. i.e. do not change the above line
+begin
+
+/* ----------------- */
+/* Equational theory */
+/* ----------------- */
+
+//Do not add, change or remove anything (not even comments) in the following line.
+builtins: hashing, symmetric-encryption, asymmetric-encryption
+
+
+/* In the following, we will indicate action facts you need to annotate your rules with.
+   The variable names used in the facts are arbitrary, you may of course choose your own names, 
+   as long as you refer to the same entities. 
+   For example, we indicate you should annotate the first rule with the action fact:
+   RegisterPassword(C,S,pwd)
+   An annotation with different variable names and sort prefixes: RegisterPassword($A,$B, ~passcode) is also valid.  */
+
+/*
+Work with the rules provided by the skeleton. Do not add or remove rules.
+*/
+
+/* --------------------- */
+/* Password Registration */
+/* --------------------- */
+
+/* The following rule should be annotated by the following action facts: 
+- RegisterPassword(C, S, pwd): indicating that client C had a password pwd with server S.
+*/
+// Do not change the rule name
+rule RegisterPassword:
+   [ Fr(~pwd) ]
+   --[ RegisterPassword($C, $S, ~pwd) ]->
+   [ !Password($C, $S, ~pwd) ]
+
+/* The following rule should be annotated by the following action facts: 
+- LeakPassword(C, S, pwd): indicating that the password pwd between client C and server S
+is leaked to the adversary.
+- DictionaryAttack(pwd): used in the restriction below.
+*/
+// Do not change the rule name
+rule LeakPassword:
+   [ !Password($C, $S, ~pwd) ]
+   --[ LeakPassword($C, $S, ~pwd), DictionaryAttack(~pwd) ]->
+   [ Out(~pwd) ]
+
+
+
+
+/*----------------*/
+/* Protocol rules */
+/*----------------*/
+
+/* The following rule should be annotated by the following action facts: 
+- ClientStarts(C, S, skc , pwd)
+*/
+// Do not change the rule name
+rule ClientStarts:
+   [ !Password($C, $S, ~pwd), Fr(~skc) ]
+   --[ ClientStarts($C, $S, ~skc, ~pwd), PasswordTerm(pk(~skc), ~pwd) ]->
+   [ ClientWaiting($C, $S, ~skc, ~pwd), Out(<$C, senc(pk(~skc), ~pwd)>) ]
+
+/* The following rule should be annotated by the following action facts: 
+- ServerReplies(S, C, pwd, sID, pkc)
+*/
+// Do not change the rule name
+rule ServerReplies:
+   [ !Password($C, $S, ~pwd), In(<$C, senc(pkc, ~pwd)>), Fr(~sID) ]
+   --[ ServerReplies($S, $C, ~pwd, ~sID, pkc) ]->
+   [ ServerWaiting($S, $C, ~pwd, ~sID), Out(aenc(~sID, pkc)) ]
+
+
+/* The following rule should be annotated by the following action facts: 
+- ClientReceives(C, S, skc, pwd, sID)
+*/
+// Do not change the rule name
+rule ClientReceives:
+   [ ClientWaiting($C, $S, ~skc, ~pwd), In(aenc(~sID, pk(~skc))) ]
+   --[ ClientReceives($C, $S, ~skc, ~pwd, ~sID), AuthGiven($C, $S, ~sID), Secret(~pwd), FinishedC($C, $S, ~pwd) ]->
+   [ Out(h(~sID)) ]
+
+/* The following rule should be annotated by the following action facts: 
+- ServerLogIn(S, C, pwd, sID)
+*/
+// Do not change the rule name
+rule ServerLogIn:
+   [ ServerWaiting($S, $C, ~pwd, ~sID), In(h(~sID)) ]
+   --[ ServerLogIn($S, $C, ~pwd, ~sID), AuthSuccess($S, $C, ~sID), FinishedS($S, $C, ~pwd) ]->
+   [ ]
+
+
+
+/* ------------ */
+/* Restrictions */
+/* ------------ */
+
+//Do not modify this restriction
+restriction DictOffline: 
+"All pwd #i.  DictionaryAttack(pwd)@i ==> Ex #j s #l. PasswordTerm(s,pwd)@ j & (#j < #i) & K(s)@l & (#l < #i)"
+
+//You can un-comment these lines if you want to use this restriction to check equality:
+//restriction Equality:
+// "All x y #i. Eq(x,y) @i ==> x = y"
+
+
+/* ---------- */
+/* Properties */
+/* ---------- */
+
+/*    Start Lemmas    */
+// You must write your lemmas within this section, lemmas placed before the previous line will not be graded. 
+// Do not modify this line and the previous two lines. 
+
+/* Executability checks */
+// Do not modify this lemma
+lemma executable:
+  exists-trace 
+"Ex #i #j C S pwd. 
+  FinishedC(C, S, pwd)@i & FinishedS(S, C, pwd)@j & not (S = C) "
+
+// The following lemma ensures that you add the required action facts. 
+// You may want to comment it out while solving the subtasks. But remember to add it back for the submission.
+
+// Do not modify this lemma
+lemma checkActionFactsAreAdded:
+exists-trace
+  " not (Ex a b c #i. LeakPassword(a, b, c)@i)
+  & (Ex a b c #i.     RegisterPassword(a, b, c)@i)
+  & (Ex a b c d #i.   ClientStarts(a, b, c, d)@i)
+  & (Ex a b c d e #i. ServerReplies(a, b, c, d, e)@i)
+  & (Ex a b c d e #i. ClientReceives(a, b, c, d, e)@i)
+  & (Ex a b c d #i.   ServerLogIn(a, b, c, d)@i)
+  " 
+
+/* You may only use the following action facts to formulate lemma 'secrecy':
+- Secret 
+- K 
+*/
+// Do not change the lemma's name
+lemma secrecy:
+  "All pwd #i. Secret(pwd)@i ==> not (Ex #j. K(pwd)@j)"
+
+/* You may only use the following action facts to formulate lemma 'non_inj_auth':
+- AuthGiven
+- AuthSuccess
+*/
+// Do not change the lemma's name
+lemma non_inj_auth:
+  "All S C sID #i. AuthSuccess(S, C, sID)@i ==> (Ex #j. AuthGiven(C, S, sID)@j & #j < #i)"
+
+/* You may only use the following action facts to formulate lemma 'inj_auth':
+- AuthGiven
+- AuthSuccess
+*/
+// Do not change the lemma's name
+lemma inj_auth:
+  "All S C sID #i. AuthSuccess(S, C, sID)@i ==> 
+    (Ex #j. AuthGiven(C, S, sID)@j & #j < #i 
+      & not (Ex S2 #i2. AuthSuccess(S2, C, sID)@i2 & not (#i2 = #i) & #j < #i2))"
+
+
+/*    End Lemmas    */
+// Lemmas after this line will not be graded. 
+// Do not modify this line and the previous two lines. 
+
+// Do not add or modify ANYTHING after this line
+end

@@ -1,0 +1,145 @@
+theory fetching_protocol
+// Do not change the theory name. i.e. do not change the above line
+begin
+
+/** !!! DO NOT EDIT BELOW !!! */
+
+builtins: symmetric-encryption, asymmetric-encryption, diffie-hellman, hashing
+
+rule Server:
+  [ Fr(~ltk) ] --[ Server_Key($S, ~ltk) ]-> [ !Server($S, ~ltk), !ServerPK($S, pk(~ltk)), Out(pk(~ltk)) ]
+
+rule ServerCompromise:
+  [ !Server($S, ~ltk) ] --[ ServerCompromise($S) ]-> [ Out(~ltk) ]
+
+rule Client:
+  [ Fr(~ltk) ] --[ Client_Key($C, ~ltk) ]-> [ !Client($C, ~ltk), Out('g'^~ltk) ]
+
+rule ClientCompromise:
+  [ !Client($C, ~ltk) ] --[ ClientCompromise($C) ]-> [ Out(~ltk) ]
+
+rule Submission:
+  [ !Client($C, ~ltk)
+  , Fr(~eph), Fr(~secret) ]
+  --[ StoreSecret($S, $C, ~secret) ]->
+  [ !StoredSecret($S, ~secret, ('g'^~ltk)^~eph, 'g'^~eph), FetchToken(~secret)
+  , Out('g'^~eph) ]
+
+lemma Executability:
+  exists-trace
+  "Ex c s k chall sec #t1 #t2 #t3 #t4 #t5.
+        ClientBegin(c, s, k) @ #t1
+      & ServerChallenge(s, k, chall, sec) @ #t2
+      & ClientRespond(c, s, k, chall) @ #t3
+      & ServerRelease(s, k, sec) @ #t4
+      & ClientReceive(c, s, k, sec) @ #t5
+      & #t1 < #t2 & #t2 < #t3 & #t3 < #t4 & #t4 < #t5"
+
+/** !!! DO NOT EDIT ABOVE !!! */
+
+/** ... model the protocol here ... */
+
+// Client sends 
+rule ClientBegin:
+  [ !Client($C, ~ltkC)
+  , !ServerPK($S, pkS)
+  , Fr(~k) ]
+  --[ ClientBegin($C, $S, ~k) ]->
+  [ ClientState1($C, $S, ~ltkC, ~k)
+  , Out(aenc(~k, pkS)) ]
+
+// Server receives encrypted key
+rule ServerReceiveRequest:
+  [ !Server($S, ~ltkS)
+  , In(aenc(k, pk(~ltkS)))
+  , !StoredSecret($S, ~secret, v, pk)
+  , FetchToken(~secret) ]
+  -->
+  [ ServerState1($S, k, ~secret, v, pk) ]
+
+// Server generates challenge 
+rule ServerSendChallenge:
+  let encChallenge = senc(~c, v^~r)
+  in
+  [ ServerState1($S, k, ~secret, v, pk)
+  , Fr(~r)
+  , Fr(~c) ]
+  --[ ServerChallenge($S, k, ~c, ~secret) ]->
+  [ ServerState2($S, k, ~secret, ~c, pk) 
+  , Out(senc(<'challenge', encChallenge, pk^~r>, k)) ]
+
+// Client receives challenge, proper pattern matching now + : Include pkr (ephemeral PK) in hash!
+rule ClientReceiveChallenge:
+  [ ClientState1($C, $S, ~ltkC, ~k)
+  , In(senc(<'challenge', senc(challengeValue, pkr^~ltkC), pkr>, ~k)) ]
+  --[ ClientRespond($C, $S, ~k, challengeValue) ]->
+  [ ClientState2($C, $S, ~k, challengeValue)
+  , Out(senc(<'response', h(<challengeValue, pkr>)>, ~k)) ] 
+
+// Server verifies response includes correct ephemeral pk
+rule ServerReceiveResponse:
+  [ ServerState2($S, k, ~secret, ~c, pk)
+  , In(senc(<'response', h(<~c, pk>)>, k)) ] 
+  --[ ServerRelease($S, k, ~secret) ]->
+  [ Out(senc(<'secret', ~secret>, k)) ]
+
+// Client receives secret
+rule ClientReceiveSecret:
+  [ ClientState2($C, $S, ~k, challengeValue)
+  , In(senc(<'secret', sec>, ~k)) ]
+  --[ ClientReceive($C, $S, ~k, sec) ]->
+  [ ]
+
+/*    Start Lemmas    */
+// You must write your lemmas within this section, lemmas placed before the previous line will not be graded.
+// Do not modify this line and the previous two lines.
+
+/* To formulate the following lemmas, you may only use built-in and the following action facts:
+- ClientBegin
+- ServerChallenge
+- ClientRespond
+- ServerRelease
+- ClientReceive
+- ServerCompromise
+- ClientCompromise
+- StoreSecret
+*/
+
+// Do not change the lemma's name
+lemma Secrecy:
+  "All s c x #i #j.
+    StoreSecret(s, c, x) @ #i
+    & K(x) @ #j
+    ==>
+    ( Ex #r. ServerCompromise(s) @ #r )
+    | ( Ex #r. ClientCompromise(c) @ #r & #r < #j )
+  "
+
+// Do not change the lemma's name
+lemma Agreement:
+  "All cl s k x #i.
+    ClientReceive(cl, s, k, x) @ #i
+    ==>
+    ( Ex #j. StoreSecret(s, cl, x) @ #j )
+    | ( Ex #r. ServerCompromise(s) @ #r )
+    | ( Ex #r. ClientCompromise(cl) @ #r )
+  "
+
+// Do not change the lemma's name
+lemma Injectivity:
+  "All cl1 cl2 s k1 k2 x #i #j.
+    ClientReceive(cl1, s, k1, x) @ #i
+    & ClientReceive(cl2, s, k2, x) @ #j
+    ==>
+    #i = #j
+    | ( Ex #r. ServerCompromise(s) @ #r )
+    | ( Ex #r1. ClientCompromise(cl1) @ #r1 )
+    | ( Ex #r2. ClientCompromise(cl2) @ #r2 )
+  "
+
+/*    End Lemmas    */
+// Lemmas after this line will not be graded.
+// Do not modify this line and the previous two lines.
+
+// Do not add or modify ANYTHING after this line
+end

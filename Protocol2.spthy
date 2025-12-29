@@ -1,0 +1,139 @@
+theory Protocol2
+// Do not change the theory name. i.e. do not change the above line
+begin
+
+/* ----------------- */
+/* Equational theory */
+/* ----------------- */
+
+//Do not add, change or remove anything (not even comments) in the following line.
+builtins: hashing
+
+/* In the following, we will indicate action facts you need to annotate your rules with.
+   The variable names used in the facts are arbitrary, you may of course choose your own names, 
+   as long as you refer to the same entities. 
+   For example, we indicate you should annotate the first rule with the action fact:
+   RegisterPassword(C,S,pwd)
+   An annotation with different variable names and sort prefixes: RegisterPassword($A,$B, ~passcode) is also valid.  */
+
+/*
+Work with the rules provided by the skeleton. Do not add or remove rules.
+*/
+
+/* --------------------- */
+/* Password Registration */
+/* --------------------- */
+
+/* The following rule should be annotated by the following action facts: 
+- RegisterPassword(C, S, pwd): indicating that client C had a password pwd with server S.
+*/
+// Do not change the rule name
+rule RegisterPassword:
+   [ Fr(~pwd) ]
+   --[ RegisterPassword($C, $S, ~pwd) ]->
+   [ !Password($C, $S, ~pwd) ]
+
+
+/*----------------*/
+/* Protocol rules */
+/*----------------*/
+
+/* The following rule should be annotated by the following action facts: 
+- ServerRequests(S, sID)
+*/
+// Do not change the rule name
+rule ServerRequests:
+   [ !Password($C, $S, ~pwd), Fr(~sID) ]
+   --[ ServerRequests($S, ~sID) ]->
+   [ ServerWaiting($S, $C, ~pwd, ~sID), Out(<'login', $S, ~sID>) ]
+
+
+/* The following rule should be annotated by the following action facts: 
+- ClientAuthenticates(C, S, pwd, sID)
+*/
+// Do not change the rule name
+rule ClientAuthenticates:
+   [ !Password($C, $S, ~pwd), In(<'login', $S, ~sID>) ]
+   --[ ClientAuthenticates($C, $S, ~pwd, ~sID), AuthGiven($C, $S, ~sID), Secret(~pwd), FinishedC($C, $S, ~pwd) ]->
+   [ Out(<$C, h(<~sID, ~pwd>)>) ]
+
+
+/* The following rule should be annotated by the following action facts: 
+- ServerValidates(S, C, sID, pwd)
+*/
+// Do not change the rule name
+rule ServerValidates:
+   [ ServerWaiting($S, $C, ~pwd, ~sID), In(<$C, h(<~sID, ~pwd>)>) ]
+   --[ ServerValidates($S, $C, ~sID, ~pwd), AuthSuccess($S, $C, ~sID), FinishedS($S, $C, ~pwd) ]->
+   [ ]
+
+
+/* ------------ */
+/* Restrictions */
+/* ------------ */
+
+//You can un-comment these lines if you want to use this restriction to check equality:
+//restriction Equality:
+// "All x y #i. Eq(x,y) @i ==> x = y"
+
+
+/* ---------- */
+/* Properties */
+/* ---------- */
+
+/*    Start Lemmas    */
+// You must write your lemmas within this section, lemmas placed before the previous line will not be graded. 
+// Do not modify this line and the previous two lines. 
+
+/* Executability checks */
+// Do not modify this lemma
+lemma executable:
+  exists-trace 
+"Ex #i #j C S pwd. 
+  FinishedC(C, S, pwd)@i & FinishedS(S, C, pwd)@j & not (S = C) "
+
+// The following lemma ensures that you add the required action facts. 
+// You may want to comment it out while solving the subtasks. But remember to add it back for the submission.
+// Do not modify this lemma
+lemma checkActionFactsAreAdded:
+exists-trace
+  " (Ex a b c #i.   RegisterPassword(a, b, c)@i)
+  & (Ex a b #i.     ServerRequests(a, b)@i)
+  & (Ex a b c d #i. ClientAuthenticates(a, b, c, d)@i)
+  & (Ex a b c d #i. ServerValidates(a, b, c, d)@i)
+  " 
+  
+/* You may only use the following action facts to formulate lemma 'secrecy':
+- Secret 
+- K 
+*/
+// Do not change the lemma's name
+lemma secrecy:
+  "All pwd #i. Secret(pwd)@i ==> not (Ex #j. K(pwd)@j)"
+
+
+/* You may only use the following action facts to formulate lemma 'non_inj_auth':
+- AuthGiven
+- AuthSuccess
+*/
+// Do not change the lemma's name
+lemma non_inj_auth:
+  "All S C sID #i. AuthSuccess(S, C, sID)@i ==> (Ex #j. AuthGiven(C, S, sID)@j & #j < #i)"
+
+/* You may only use the following action facts to formulate lemma 'inj_auth':
+- AuthGiven
+- AuthSuccess
+*/
+// Do not change the lemma's name
+lemma inj_auth:
+  "All S C sID #i. AuthSuccess(S, C, sID)@i ==> 
+    (Ex #j. AuthGiven(C, S, sID)@j & #j < #i 
+      & not (Ex S2 #i2. AuthSuccess(S2, C, sID)@i2 & not (#i2 = #i) & #j < #i2))"
+
+
+/*    End Lemmas    */
+// Lemmas after this line will not be graded. 
+// Do not modify this line and the previous two lines. 
+
+// Do not add or modify ANYTHING after this line
+end
